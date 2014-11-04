@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">SimpBleC</string>
+    <string name="find_a_friend">Find a Friend</string>
+    <string name="action_settings">Settings</string>
+
+</resources>
