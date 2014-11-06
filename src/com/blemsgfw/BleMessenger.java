@@ -221,7 +221,7 @@ public class BleMessenger {
         	BleMessage b = thisConnection.getBleMessage(parentMessage);
         	
         	// your packet payload will be the size of the incoming bytes less our 3 needed for the header (ref'd above)
-        	byte[] packetPayload = new byte[incomingBytes.length - 3];
+        	byte[] packetPayload = new byte[incomingBytes.length];
         	
         	// throw these bytes into our payload array
         	bb.get(packetPayload, 2, incomingBytes.length - 3);
@@ -230,10 +230,14 @@ public class BleMessenger {
         	// the number of packets we're expecting
         	if (packetCounter == 0) {
         		// right now this is only going to be a couple of bytes
+        		
         		parentMessagePacketTotal = (incomingBytes[3] << 8) | incomingBytes[4] & 0xFF;
+        		Log.v(TAG, "p0, parentMessagePacketTotal from incomingBytes is:" + String.valueOf(parentMessagePacketTotal));
+        		
         		b.BuildMessageFromPackets(packetCounter, packetPayload, parentMessagePacketTotal);
         	} else {
         		// otherwise throw this packet payload into the message
+        		Log.v(TAG, "p1+:" + String.valueOf(packetCounter));
         		b.BuildMessageFromPackets(packetCounter, packetPayload);	
         	}
         	
@@ -247,11 +251,22 @@ public class BleMessenger {
         		// - send our identity over
         		// - return friendly name to calling program
 
-        		byte[] payload = b.MessagePayload;
-        		String recipientFingerprint = bytesToHex(b.RecipientFingerprint);
-        		String senderFingerprint = bytesToHex(b.SenderFingerprint);
-        		String msgType = b.MessageType;
+        		String recipientFingerprint = "";
+        		String senderFingerprint = "";
+        		String msgType = "";
         		
+        		byte[] payload = b.MessagePayload;
+        		if (b.RecipientFingerprint != null) {
+        			recipientFingerprint = bytesToHex(b.RecipientFingerprint);
+        		}
+        		
+        		if (b.SenderFingerprint != null) {
+        			senderFingerprint = bytesToHex(b.SenderFingerprint);
+        		}
+        		
+        		if (b.MessageType != null) {
+        			msgType = b.MessageType;
+        		}
         		bleStatusCallback.handleReceivedMessage(recipientFingerprint, senderFingerprint, payload, msgType);
         		
         		// check message integrity here?
