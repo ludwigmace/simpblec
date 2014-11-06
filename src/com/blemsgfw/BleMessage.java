@@ -37,7 +37,8 @@ public class BleMessage {
 	public byte[] SenderFingerprint;
 	public byte[] MessageHash;
 	public byte[] MessagePayload;
-	
+
+	private int messageNumber;
 	
 	public void AddRecipient(BleRecipient Recipient) {
 		messageRecipients.add(Recipient);
@@ -94,6 +95,7 @@ public class BleMessage {
 	public void setMessage(byte[] MessageBytes) {
 		setMessage(MessageBytes, 20);
 	}
+	
 	
 	public void setMessage(byte[] MessageBytes, int MessagePacketSize) {
 
@@ -172,6 +174,7 @@ public class BleMessage {
 		
 		// if we've got all the packets for this message, set our pending packet flag to false
 		// this will need to be changed to account for missing packets, if we use NOTIFY to get our data, or non-reliable WRITEs
+		Log.v(TAG, "packetCounter is:" + String.valueOf(packetCounter) + ", BlePacketCount is:" + String.valueOf(BlePacketCount));
 		if (packetCounter >= BlePacketCount) {
 			pendingPacketStatus = false;
 			// now act on the fact this message has all its packets
@@ -189,18 +192,28 @@ public class BleMessage {
 		 * - payload
 		 */
 		
-		byte[] allBytes = getAllBytes();
+		Log.v(TAG, "unbundling message");
 		
-		byte[] msgType = Arrays.copyOfRange(allBytes, 0, 1); // byte 0
-		RecipientFingerprint = Arrays.copyOfRange(allBytes, 1, 21); // bytes 1-20
-		SenderFingerprint = Arrays.copyOfRange(allBytes, 21, 41); // bytes 21-40
-		MessageHash = Arrays.copyOfRange(allBytes, 41, 61); // bytes 41-60
-		MessagePayload = Arrays.copyOfRange(allBytes, 61, allBytes.length+1); //bytes 61 through end
+		byte[] allBytes = dePacketize();
+		
+		if (allBytes.length > 41) {
+		
+			byte[] msgType = Arrays.copyOfRange(allBytes, 0, 1); // byte 0
+			RecipientFingerprint = Arrays.copyOfRange(allBytes, 1, 21); // bytes 1-20
+			SenderFingerprint = Arrays.copyOfRange(allBytes, 21, 41); // bytes 21-40
+			MessagePayload = Arrays.copyOfRange(allBytes, 41, allBytes.length+1); //bytes 41 through end
 
-		if (msgType.equals(new byte[] {0x01})) {
-			MessageType = "identity";
-		} else {
-			MessageType = "direct";
+			if (msgType.equals(new byte[] {0x01})) {
+				MessageType = "identity";
+			} else {
+				MessageType = "direct";
+			}
+			
+			Log.v(TAG, "MessageType:" + MessageType);
+			Log.v(TAG, "RFP:" + bytesToHex(RecipientFingerprint));
+			Log.v(TAG, "SFP:" + bytesToHex(SenderFingerprint));
+			Log.v(TAG, "Payload" + bytesToHex(MessagePayload));
+		
 		}
 		
 		
@@ -215,6 +228,25 @@ public class BleMessage {
         	os.write(b.MessageBytes, 0, b.MessageBytes.length);
         }
 		
+        return os.toByteArray(); 
+		
+	}
+
+	public byte[] dePacketize() {
+		
+		ByteArrayOutputStream os = new ByteArrayOutputStream();
+		ByteArrayOutputStream hash = new ByteArrayOutputStream();
+		
+		// i'm still not necessarily writing these out in order!
+        for (BlePacket b : messagePackets) {
+        	if (b.MessageSequence == 0) {
+        		hash.write(b.MessageBytes, 4, b.MessageBytes.length-4);
+        	} else {
+        		os.write(b.MessageBytes, 4, b.MessageBytes.length-4);
+        	}
+        }
+		
+        MessageHash = hash.toByteArray();
         return os.toByteArray(); 
 		
 	}
@@ -277,5 +309,16 @@ public class BleMessage {
     	return nextMsg;
 	}
 	
+    final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
+    public static String bytesToHex(byte[] bytes) {
+        char[] hexChars = new char[bytes.length * 2];
+        for ( int j = 0; j < bytes.length; j++ ) {
+            int v = bytes[j] & 0xFF;
+            hexChars[j * 2] = hexArray[v >>> 4];
+            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+        }
+        return new String(hexChars);
+    }
+
 	
 }
