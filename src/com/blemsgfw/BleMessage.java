@@ -2,6 +2,7 @@ package com.blemsgfw;
 
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -237,21 +238,24 @@ public class BleMessage {
 	public byte[] dePacketize() {
 		
 		ByteArrayOutputStream os = new ByteArrayOutputStream();
-		ByteArrayOutputStream hash = new ByteArrayOutputStream();
 		
 		int i = 0;
 		// i'm still not necessarily writing these out in order!
         for (BlePacket b : messagePackets) {
-        	Log.v(TAG, "packet" + String.valueOf(i) + ":" + bytesToHex(b.MessageBytes));
+        	Log.v(TAG, "packet" + String.valueOf(i) + ", msgseq:" + String.valueOf(b.MessageSequence) + ":" + bytesToHex(b.MessageBytes));
         	if (b.MessageSequence == 0) {
-        		hash.write(b.MessageBytes, 5, b.MessageBytes.length-5);
+        		MessageHash = b.MessageBytes;
         	} else {
-        		os.write(b.MessageBytes, 5, b.MessageBytes.length-5);
+        		try {
+					os.write(b.MessageBytes);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
         	}
         	i++;
         }
 		
-        MessageHash = hash.toByteArray();
         return os.toByteArray(); 
 		
 	}
