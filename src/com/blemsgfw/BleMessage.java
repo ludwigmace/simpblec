@@ -132,7 +132,7 @@ public class BleMessage {
         // how many packets?  divide msg length by packet size, w/ trick to round up
         // so the weird thing is we've got to leave a byte in each msg, so effectively our
         // msg blocks are decreased by an extra byte, hence the -3 and -2 below
-        int msgCount  = (MessageBytes.length + messagePacketSize - 3) / (messagePacketSize - 2);
+        int msgCount  = (MessageBytes.length + messagePacketSize - 4) / (messagePacketSize - 3);
         
         Log.v(TAG, "packet count:" + String.valueOf(msgCount));
         // first byte is counter; 0 provides meta info about msg
