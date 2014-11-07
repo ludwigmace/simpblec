@@ -2,7 +2,6 @@ package com.blemsgfw;
 
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -38,11 +37,15 @@ public class BleMessage {
 	public byte[] SenderFingerprint;
 	public byte[] MessageHash;
 	public byte[] MessagePayload;
-
+	
 	private int messageNumber;
 	
 	public void AddRecipient(BleRecipient Recipient) {
 		messageRecipients.add(Recipient);
+	}
+	
+	public void SetMessageNumber(int MessageNumber) {
+		messageNumber = MessageNumber;
 	}
 
 	public void SetRemoteInfo(String RemoteAddress, UUID RemoteCharacteristic) {
@@ -98,8 +101,29 @@ public class BleMessage {
 	}
 	
 	
-	public void setMessage(byte[] MessageBytes, int MessagePacketSize) {
+	public void setMessage(byte[] Payload, int MessagePacketSize) {
 
+		// for an id message:
+		// first byte, 0x01, indicates an identity message
+		// next 20 bytes are recipient fingerprint
+		// next 20 bytes are sender fingerprint
+		// final arbitrary bytes are the payload
+		
+		//byte[] newMsg = Bytes.concat(new byte[]{(byte)(0x01)}, new byte[20], rsaKey.PuFingerprint());
+		
+		byte[] MsgType;
+		
+		if (MessageType == "identity") {
+			MsgType = new byte[]{(byte)(0x01)};
+		} else {
+			MsgType = new byte[]{(byte)(0x02)};
+		}
+		
+		// Message Type, RFP, SFP, and payload
+		byte[] MessageBytes = Bytes.concat(MsgType, RecipientFingerprint, SenderFingerprint, Payload);
+		
+		Log.v(TAG, "MessageBytes: " + bytesToHex(MessageBytes));
+		
 		messagePacketSize = MessagePacketSize; 
 		
 		// clear the list of packets; we're building a new message using packets!
@@ -124,39 +148,47 @@ public class BleMessage {
 			e.printStackTrace();
 		}
         
-        // i want my digest to be the packet size less the 2 bytes needed for counter and size
-        byte[] myDigest = Arrays.copyOfRange(md.digest(MessageBytes), 0, messagePacketSize - 2);
+        // i want my digest to be the packet size less the 3 bytes needed for counter and size
+        byte[] myDigest = Arrays.copyOfRange(md.digest(MessageBytes), 0, messagePacketSize - 5);
         
         Log.v(TAG, "first payload is of size: " + String.valueOf(myDigest.length));
         
-        // first byte is control; second byte is packetcount; add on the digest
-        byte[] firstPacket = Bytes.concat(new byte[]{(byte)0x01, (byte)(msgCount & 0xFF)}, myDigest);
+        // first byte is which message this is for the receiver to understand
+        // second/third bytes are current packet
+        // fourth/firth bytes are message size
+        // 6+ is the digest truncated to 15 bytes
+        
+        byte[] msgSize = new byte[2];
+        msgSize[0] = (byte)(msgCount >> 8);
+        msgSize[1] = (byte)(msgCount & 0xFF);
+        
+        byte[] firstPacket = Bytes.concat(new byte[]{(byte)(messageNumber & 0xFF)}, new byte[]{(byte)0x00, (byte)0x00}, msgSize, myDigest);
 
         // add the packet to this message
         addPacket(0, firstPacket);
+        Log.v(TAG, "packetize first:" + bytesToHex(firstPacket));
         
         int msgSequence = 1;
 					
 		while (msgSequence <= msgCount) {
 			
-			int currentReadIndex = ((msgSequence - 1) * (messagePacketSize - 2));
+			int currentReadIndex = ((msgSequence - 1) * (messagePacketSize - 3));
 		
 			// leave room for the message counters
 			//Log.v(TAG, "rawMsg:" + String.valueOf(rawMsg.length) + ", currentReadIndex:" + String.valueOf(currentReadIndex));
-			byte[] val = Arrays.copyOfRange(MessageBytes, currentReadIndex, currentReadIndex + messagePacketSize - 2);
-			
-			byte[] msgHeader = {(byte) 0x02, (byte)(msgSequence & 0xFF)}; 
-	        val = Bytes.concat(msgHeader, val);
+			byte[] val = Arrays.copyOfRange(MessageBytes, currentReadIndex, currentReadIndex + messagePacketSize - 3);
 
-	        addPacket(msgSequence, val);
+	        byte[] currentPacketCounter = new byte[2];
+	        currentPacketCounter[0] = (byte)(msgSequence >> 8);
+	        currentPacketCounter[1] = (byte)(msgSequence & 0xFF);
+ 
+	        val = Bytes.concat(new byte[]{(byte)(messageNumber & 0xFF)}, currentPacketCounter, val);
 	        
+	        addPacket(msgSequence, val);
+	        Log.v(TAG, "packetize the rest:" + bytesToHex(val));
 	        msgSequence++;
 			
 		}
-
-		// final packet will be an EOT
-		byte[] eot = {(byte) 0x04, (byte) 0x00};
-		addPacket(msgSequence, eot);
 
 		pendingPacketStatus = true;
 		
@@ -175,7 +207,6 @@ public class BleMessage {
 		
 		// if we've got all the packets for this message, set our pending packet flag to false
 		// this will need to be changed to account for missing packets, if we use NOTIFY to get our data, or non-reliable WRITEs
-		Log.v(TAG, "packetCounter is:" + String.valueOf(packetCounter) + ", BlePacketCount is:" + String.valueOf(BlePacketCount));
 		if (packetCounter >= BlePacketCount) {
 			pendingPacketStatus = false;
 			// now act on the fact this message has all its packets
@@ -195,27 +226,21 @@ public class BleMessage {
 		
 		Log.v(TAG, "unbundling message");
 		
-		byte[] allBytes = dePacketize();
+		byte[] allBytes = getAllBytes();
 		
-		Log.v(TAG, "bytes:" + bytesToHex(allBytes));
-		
-		if (allBytes.length > 41) {
+		if (allBytes.length >= 61) {
 		
 			byte[] msgType = Arrays.copyOfRange(allBytes, 0, 1); // byte 0
 			RecipientFingerprint = Arrays.copyOfRange(allBytes, 1, 21); // bytes 1-20
 			SenderFingerprint = Arrays.copyOfRange(allBytes, 21, 41); // bytes 21-40
-			MessagePayload = Arrays.copyOfRange(allBytes, 41, allBytes.length+1); //bytes 41 through end
+			MessageHash = Arrays.copyOfRange(allBytes, 41, 61); // bytes 41-60
+			MessagePayload = Arrays.copyOfRange(allBytes, 61, allBytes.length+1); //bytes 61 through end
 
-			if (Arrays.equals(msgType, new byte[] {0x01})) {
+			if (msgType.equals(new byte[] {0x01})) {
 				MessageType = "identity";
 			} else {
 				MessageType = "direct";
 			}
-			
-			Log.v(TAG, "MessageType:" + MessageType);
-			Log.v(TAG, "RFP:" + bytesToHex(RecipientFingerprint));
-			Log.v(TAG, "SFP:" + bytesToHex(SenderFingerprint));
-			Log.v(TAG, "Payload" + bytesToHex(MessagePayload));
 		
 		}
 		
@@ -229,31 +254,6 @@ public class BleMessage {
 		
         for (BlePacket b : messagePackets) {
         	os.write(b.MessageBytes, 0, b.MessageBytes.length);
-        }
-		
-        return os.toByteArray(); 
-		
-	}
-
-	public byte[] dePacketize() {
-		
-		ByteArrayOutputStream os = new ByteArrayOutputStream();
-		
-		int i = 0;
-		// i'm still not necessarily writing these out in order!
-        for (BlePacket b : messagePackets) {
-        	Log.v(TAG, "packet" + String.valueOf(i) + ", msgseq:" + String.valueOf(b.MessageSequence) + ":" + bytesToHex(b.MessageBytes));
-        	if (b.MessageSequence == 0) {
-        		MessageHash = b.MessageBytes;
-        	} else {
-        		try {
-					os.write(b.MessageBytes);
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-        	}
-        	i++;
         }
 		
         return os.toByteArray(); 
@@ -317,6 +317,7 @@ public class BleMessage {
     	}
     	return nextMsg;
 	}
+
 	
     final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
     public static String bytesToHex(byte[] bytes) {
@@ -328,6 +329,5 @@ public class BleMessage {
         }
         return new String(hexChars);
     }
-
 	
 }

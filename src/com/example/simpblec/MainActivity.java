@@ -182,6 +182,7 @@ public class MainActivity extends Activity {
 
 			// this is an identity message so handle it as such
 			if (msgType.equalsIgnoreCase("identity")) {
+				Log.v(TAG, "received an identity message!");
 				if (recipientFingerprint.length() == 0) {
 					// there is no recipient; this is just an identifying message
 				} else if (recipientFingerprint.equalsIgnoreCase(myFingerprint)) {
@@ -192,12 +193,21 @@ public class MainActivity extends Activity {
 				
 				if (bleFriends.containsValue(senderFingerprint)) {
 					// we know the sender, check for any messages we want to send them
+					Log.v(TAG, "known sender " + senderFingerprint);
+					
 				} else {
 					// we don't know the sender and should add them;
 					// parse the public key & friendly name out of the payload, and add this as a new person
+					Log.v(TAG, "unknown sender " + senderFingerprint);
+					BlePeer p = new BlePeer("");
+				
+					bleFriends.put(senderFingerprint, p);
 				}
 				
-				// the First message we send them, however, needs to be our own ID message
+				// the First message we send them
+				// needs to be our own ID message
+			} else {
+				Log.v(TAG, "received a non-identity message!");
 			}
 			
 		}
