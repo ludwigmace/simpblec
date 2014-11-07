@@ -216,7 +216,7 @@ public class BleMessenger {
         	int packetCounter = (incomingBytes[1] << 8) | incomingBytes[2] & 0xFF;
 
         	// find the message for this connection that we're building
-        	BleMessage b = thisConnection.getBleMessage(parentMessage);
+        	BleMessage b = thisConnection.getBleMessageIn(parentMessage);
         	
         	// your packet payload will be the size of the incoming bytes
         	//less our 3 needed for the header (ref'd above)
