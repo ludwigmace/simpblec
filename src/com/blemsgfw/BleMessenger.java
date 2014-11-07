@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -210,9 +211,6 @@ public class BleMessenger {
         	//get the connection
         	BlePeer thisConnection = peerMap.get(remoteAddress);
     	    	
-    		// stick our incoming bytes into a bytebuffer to do some operations
-        	ByteBuffer bb  = ByteBuffer.wrap(incomingBytes);
-        
         	// get the Message to which these packets belong as well as the current counter
         	int parentMessage = incomingBytes[0] & 0xFF;
         	int packetCounter = (incomingBytes[1] << 8) | incomingBytes[2] & 0xFF;
@@ -220,11 +218,11 @@ public class BleMessenger {
         	// find the message for this connection that we're building
         	BleMessage b = thisConnection.getBleMessage(parentMessage);
         	
-        	// your packet payload will be the size of the incoming bytes less our 3 needed for the header (ref'd above)
-        	byte[] packetPayload = new byte[incomingBytes.length];
+        	// your packet payload will be the size of the incoming bytes
+        	//less our 3 needed for the header (ref'd above)
+        	byte[] packetPayload = Arrays.copyOfRange(incomingBytes, 3, incomingBytes.length);
         	
-        	// throw these bytes into our payload array
-        	bb.get(packetPayload, 2, incomingBytes.length - 3);
+        	Log.v(TAG, "payload:"+ bytesToHex(packetPayload));
         	
         	// if our current packet counter is ZERO, then we can expect our payload to be:
         	// the number of packets we're expecting

@@ -196,6 +196,8 @@ public class BleMessage {
 		
 		byte[] allBytes = dePacketize();
 		
+		Log.v(TAG, "bytes:" + bytesToHex(allBytes));
+		
 		if (allBytes.length > 41) {
 		
 			byte[] msgType = Arrays.copyOfRange(allBytes, 0, 1); // byte 0
@@ -203,7 +205,7 @@ public class BleMessage {
 			SenderFingerprint = Arrays.copyOfRange(allBytes, 21, 41); // bytes 21-40
 			MessagePayload = Arrays.copyOfRange(allBytes, 41, allBytes.length+1); //bytes 41 through end
 
-			if (msgType.equals(new byte[] {0x01})) {
+			if (Arrays.equals(msgType, new byte[] {0x01})) {
 				MessageType = "identity";
 			} else {
 				MessageType = "direct";
@@ -237,13 +239,16 @@ public class BleMessage {
 		ByteArrayOutputStream os = new ByteArrayOutputStream();
 		ByteArrayOutputStream hash = new ByteArrayOutputStream();
 		
+		int i = 0;
 		// i'm still not necessarily writing these out in order!
         for (BlePacket b : messagePackets) {
+        	Log.v(TAG, "packet" + String.valueOf(i) + ":" + bytesToHex(b.MessageBytes));
         	if (b.MessageSequence == 0) {
-        		hash.write(b.MessageBytes, 4, b.MessageBytes.length-4);
+        		hash.write(b.MessageBytes, 5, b.MessageBytes.length-5);
         	} else {
-        		os.write(b.MessageBytes, 4, b.MessageBytes.length-4);
+        		os.write(b.MessageBytes, 5, b.MessageBytes.length-5);
         	}
+        	i++;
         }
 		
         MessageHash = hash.toByteArray();
