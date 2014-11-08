@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import com.blemsgfw.BleMessage;
 import com.blemsgfw.BleMessenger;
 import com.blemsgfw.BleMessengerOptions;
 import com.blemsgfw.BlePeer;
@@ -85,11 +86,21 @@ public class MainActivity extends Activity {
         
 		// create a messenger along with the context (for bluetooth operations)
 		bleMessenger = new BleMessenger(bo, btMgr, btAdptr, this);
-        
+
+		
 		// generate message of particular byte size
 		byte[] bytesMessage = benchGenerateMessage(45);
 
 		bleFriends = new HashMap<String, BlePeer>();
+		
+		BleMessage m = new BleMessage();
+		m.MessageType = "identity";
+		m.SenderFingerprint = rsaKey.PublicKey();
+		m.RecipientFingerprint = new byte[20];
+		
+		m.setMessage(rsaKey.PublicKey());
+		
+		bleMessenger.idMessage = m;
 		
 		
 	}
@@ -202,9 +213,19 @@ public class MainActivity extends Activity {
 					BlePeer p = new BlePeer("");
 					p.SetFingerprint(senderFingerprint);
 					bleFriends.put(senderFingerprint, p);
+
+					// should this part actually send over a queue?
+					
+					// MAIN should tell the Messenger class to whom it should start sending messages
+					// local - queueOutboundMessage(senderFingerprint, p.GetFingerprintBytes());
+					
+					bleMessenger.releasePending(senderFingerprint);
 				}
 				
+				
+				
 				showMessage("found " + senderFingerprint);
+
 				
 				// the First message we send them
 				// needs to be our own ID message
@@ -253,11 +274,7 @@ public class MainActivity extends Activity {
 	public void handleButtonFindAFriend(View view) {
 		bleMessenger.showFound(bleMessageStatus);
 	}
-	
-	public void queueOutboundMessage(String destinationFingerprint, byte[] message) {
 		
-	}
-	
 	private void showMessage(String msg) {
 
 		final String message = msg;

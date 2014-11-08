@@ -44,9 +44,12 @@ public class BleMessenger {
     private String myFriendlyName;
 
     // keep a map of our messages for a connection session - this may not work out; or we may need to keep a map per peer
-    private Map<Integer, BleMessage> bleMessageMap;
+    private Map<Integer, BleMessage> bleMessageMap;    
     
     private Map<String, BlePeer> peerMap;
+    private Map<String, String> fpNetMap;
+    
+    public BleMessage idMessage;
     
     List<BleCharacteristic> serviceDef;
 	
@@ -154,6 +157,12 @@ public class BleMessenger {
     }
 
 
+    public void queueOutboundMessage(String recipientFingerprint, byte[] msg) {
+    	BleMessage m = new BleMessage();
+    	m.MessagePayload = msg;
+    	m.RecipientFingerprint = hexToBytes(recipientFingerprint);
+    }
+    
     public void parseIncomingMsg(BlePeer blePeer, BluetoothGattCharacteristic incomingChar, byte[] incomingBytes, boolean initNewRead) {
     	
     	// read in the bytes to build the message - if it needs another read, read in
@@ -186,6 +195,10 @@ public class BleMessenger {
     }
     
 
+    public void releasePending(String recipientFingerprint) {
+    	// central should up connectee using this fingerprint
+    	// then hit up the Write command in a loop
+    }
 
     
     MyGattClientHandler clientHandler = new MyGattClientHandler() {
@@ -403,6 +416,17 @@ public class BleMessenger {
             hexChars[j * 2 + 1] = hexArray[v & 0x0F];
         }
         return new String(hexChars);
+    }
+
+    private static byte[] hexToBytes(String hex) {
+    	byte[] bytes = new byte[hex.length() / 2];
+    	
+    	for (int i = 0; i < bytes.length; i++) {
+    		bytes[i] = (byte) Integer.parseInt(hex.substring(2*i, 2*i+2),16);
+    		
+    	}
+    	
+    	return bytes;
     }
     
 }
