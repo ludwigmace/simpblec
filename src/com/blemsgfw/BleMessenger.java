@@ -42,6 +42,9 @@ public class BleMessenger {
     
     private String myIdentifier;
     private String myFriendlyName;
+    
+    private int CurrentParentMessage;
+    private BlePeer CurrentPeer;
 
     // keep a map of our messages for a connection session - this may not work out; or we may need to keep a map per peer
     private Map<Integer, BleMessage> bleMessageMap;
