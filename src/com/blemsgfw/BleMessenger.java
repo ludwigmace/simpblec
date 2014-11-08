@@ -68,6 +68,8 @@ public class BleMessenger {
 		
 		// i need a place to put my found peers
 		peerMap = new HashMap<String, BlePeer>();
+	
+		fpNetMap = new HashMap<String, String>();
 		
 		// create your server for listening and your client for looking; Android can be both at the same time
 		myGattClient = new MyCentral(btAdptr, ctx, clientHandler);
@@ -85,6 +87,53 @@ public class BleMessenger {
 
 		
 	}
+	
+	public void sendIdentity(String recipientFingerprint) {
+
+		// find the peer address based on the fingerprint
+		Log.v(TAG, "get peer address for FP:" + recipientFingerprint);
+		String peerAddress = fpNetMap.get(recipientFingerprint);
+		Log.v(TAG, "peer address is:" + peerAddress);
+		
+		// pull the peer based on the address
+		BlePeer p = peerMap.get(peerAddress);
+		Log.v(TAG, "pulling fingerprint from peer object: " + p.GetFingerprint());
+		
+		// queue up our id message for this peer (need a way to reset the idMessage for new peers!)
+		p.addBleMessageOut(idMessage);
+	
+
+		// now just send everything to this recipient - we'll want to move this to its own method
+    	// if we've got packets pending send, then send them
+		Log.v(TAG, "call write for this peer");
+		writeOut(p);
+		
+	}
+	
+	// perhaps have another signature that allows sending a single message
+	private void writeOut(BlePeer peer) {
+		
+		// given a peer, get an arbitrary message to send
+		BleMessage b = peer.getBleMessageOut();
+		
+		// pull the remote address for this peer
+		String remoteAddress = fpNetMap.get(peer.GetFingerprint());
+		
+		// send the next packet
+    	if (b.PendingPacketStatus()) {
+    		byte[] nextPacket = b.GetPacket().MessageBytes;
+    		
+    		Log.v(TAG, "send write request to " + remoteAddress);
+    		myGattClient.submitCharacteristicWriteRequest(remoteAddress, uuidFromBase("101"), nextPacket);
+    		
+    		// call this until the message is sent
+    		writeOut(peer);
+    	} else {
+    		Log.v(TAG, "all pending packets sent");
+    	}
+		
+	}
+	
 	
 	private UUID uuidFromBase(String smallUUID) {
 		String strUUID =  uuidServiceBase.substring(0, 4) + new String(new char[4-smallUUID.length()]).replace("\0", "0") + smallUUID + uuidServiceBase.substring(8, uuidServiceBase.length());
@@ -270,6 +319,7 @@ public class BleMessenger {
         		String msgType = "";
         		
         		byte[] payload = b.MessagePayload;
+        		
         		if (b.RecipientFingerprint != null) {
         			recipientFingerprint = bytesToHex(b.RecipientFingerprint);
         		}
@@ -281,6 +331,13 @@ public class BleMessenger {
         		if (b.MessageType != null) {
         			msgType = b.MessageType;
         		}
+        		
+        		Log.v(TAG, "adding to fpNetMap:" + senderFingerprint + "; " + remoteAddress);
+        		BlePeer p = peerMap.get(remoteAddress);
+        		p.SetFingerprint(b.SenderFingerprint);
+        		fpNetMap.put(senderFingerprint, remoteAddress);
+        		
+        		
         		bleStatusCallback.handleReceivedMessage(recipientFingerprint, senderFingerprint, payload, msgType);
         		
         		// check message integrity here?

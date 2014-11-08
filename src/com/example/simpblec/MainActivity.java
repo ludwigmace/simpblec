@@ -219,7 +219,7 @@ public class MainActivity extends Activity {
 					// MAIN should tell the Messenger class to whom it should start sending messages
 					// local - queueOutboundMessage(senderFingerprint, p.GetFingerprintBytes());
 					
-					bleMessenger.releasePending(senderFingerprint);
+					bleMessenger.sendIdentity(senderFingerprint);
 				}
 				
 				

@@ -173,6 +173,27 @@ public class MyCentral {
     	
     }
     
+    public boolean submitCharacteristicWriteRequest(String remoteAddr, UUID uuidChar, final byte[] val) {
+		
+    	boolean charWrote = false;
+
+    	BluetoothGatt gatt = gattS.get(remoteAddr);
+    	BluetoothGattCharacteristic writeChar = gatt.getService(UUID.fromString(strSvcUuidBase)).getCharacteristic(uuidChar);
+    	
+    	writeChar.setValue(val);
+    	writeChar.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+    		
+    	try {
+    		gatt.writeCharacteristic(writeChar);
+    		charWrote = true;
+    	} catch (Exception e) {
+    		Log.v(TAG, "cannot write char ");
+    		Log.v(TAG, e.getMessage());
+    	}
+		
+		return charWrote;
+    }
+    
  // when a device is found from the ScanLeDevice method, call this
     private BluetoothAdapter.LeScanCallback mLeScanCallback = new BluetoothAdapter.LeScanCallback() {
         
