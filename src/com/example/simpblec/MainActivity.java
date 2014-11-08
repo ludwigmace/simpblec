@@ -200,9 +200,11 @@ public class MainActivity extends Activity {
 					// parse the public key & friendly name out of the payload, and add this as a new person
 					Log.v(TAG, "unknown sender " + senderFingerprint);
 					BlePeer p = new BlePeer("");
-				
+					p.SetFingerprint(senderFingerprint);
 					bleFriends.put(senderFingerprint, p);
 				}
+				
+				showMessage("found " + senderFingerprint);
 				
 				// the First message we send them
 				// needs to be our own ID message

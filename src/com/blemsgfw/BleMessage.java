@@ -2,6 +2,7 @@ package com.blemsgfw;
 
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -226,21 +227,27 @@ public class BleMessage {
 		
 		Log.v(TAG, "unbundling message");
 		
-		byte[] allBytes = getAllBytes();
+		byte[] allBytes = dePacketize();
 		
-		if (allBytes.length >= 61) {
+		Log.v(TAG, "bytes:" + bytesToHex(allBytes));
+		
+		if (allBytes.length > 41) {
 		
 			byte[] msgType = Arrays.copyOfRange(allBytes, 0, 1); // byte 0
 			RecipientFingerprint = Arrays.copyOfRange(allBytes, 1, 21); // bytes 1-20
 			SenderFingerprint = Arrays.copyOfRange(allBytes, 21, 41); // bytes 21-40
-			MessageHash = Arrays.copyOfRange(allBytes, 41, 61); // bytes 41-60
-			MessagePayload = Arrays.copyOfRange(allBytes, 61, allBytes.length+1); //bytes 61 through end
+			MessagePayload = Arrays.copyOfRange(allBytes, 41, allBytes.length+1); //bytes 41 through end
 
-			if (msgType.equals(new byte[] {0x01})) {
+			if (Arrays.equals(msgType, new byte[] {0x01})) {
 				MessageType = "identity";
 			} else {
 				MessageType = "direct";
 			}
+			
+			Log.v(TAG, "MessageType:" + MessageType);
+			Log.v(TAG, "RFP:" + bytesToHex(RecipientFingerprint));
+			Log.v(TAG, "SFP:" + bytesToHex(SenderFingerprint));
+			Log.v(TAG, "Payload" + bytesToHex(MessagePayload));
 		
 		}
 		
@@ -254,6 +261,31 @@ public class BleMessage {
 		
         for (BlePacket b : messagePackets) {
         	os.write(b.MessageBytes, 0, b.MessageBytes.length);
+        }
+		
+        return os.toByteArray(); 
+		
+	}
+
+	public byte[] dePacketize() {
+		
+		ByteArrayOutputStream os = new ByteArrayOutputStream();
+		
+		int i = 0;
+		// i'm still not necessarily writing these out in order!
+        for (BlePacket b : messagePackets) {
+        	Log.v(TAG, "packet" + String.valueOf(i) + ", msgseq:" + String.valueOf(b.MessageSequence) + ":" + bytesToHex(b.MessageBytes));
+        	if (b.MessageSequence == 0) {
+        		MessageHash = b.MessageBytes;
+        	} else {
+        		try {
+					os.write(b.MessageBytes);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+        	}
+        	i++;
         }
 		
         return os.toByteArray(); 
