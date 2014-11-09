@@ -307,13 +307,18 @@ public class MyCentral {
         
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-        	//gattClientHandler.getWriteResult(characteristic.getUuid().toString(), status);
+        	// the passed in characteristic's value is always 00, so it must be a different characteristic
+        	Log.v(TAG, "write submitted, BtGattChar.getValue=" + bytesToHex(characteristic.getValue()));
+        	
+        	
         	if (status == BluetoothGatt.GATT_SUCCESS) {
-        		Log.v(TAG, "successful write");
-        		gattClientHandler.handleWriteResult(gatt, characteristic, status);
+        		Log.v(TAG, "successful!");
+        		//gattClientHandler.handleWriteResult(gatt, characteristic, status);
+        	} else {
+        		Log.v(TAG, "not successful!");
         	}
         	
-           //Log.v(TAG, "write submitted val:" + new String(characteristic.getValue()) + " - result:" + String.valueOf(status));
+           
           
         }
 
