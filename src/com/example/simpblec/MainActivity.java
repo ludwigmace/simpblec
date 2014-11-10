@@ -3,10 +3,16 @@ package com.example.simpblec;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
 
 import com.blemsgfw.BleMessage;
 import com.blemsgfw.BleMessenger;
@@ -40,6 +46,8 @@ public class MainActivity extends Activity {
 	Map <String, BlePeer> bleFriends;
 	String myFingerprint;
 
+	KeyStuff rsaKey;
+	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -68,7 +76,7 @@ public class MainActivity extends Activity {
         bo.FriendlyName = userName;
         bo.Identifier = myIdentifier;
         
-        KeyStuff rsaKey = null;
+        rsaKey = null;
         
 		try {
 			rsaKey = new KeyStuff(this, myIdentifier);
@@ -93,16 +101,20 @@ public class MainActivity extends Activity {
 
 		bleFriends = new HashMap<String, BlePeer>();
 		
+
+		
+	}
+	
+	// creates a message formatted for identity exchange
+	private BleMessage identityMessage(byte[] payload) {
 		BleMessage m = new BleMessage();
 		m.MessageType = "identity";
 		m.SenderFingerprint = rsaKey.PublicKey();
 		m.RecipientFingerprint = new byte[20];
 		
-		m.setMessage(rsaKey.PublicKey());
+		m.setMessage(payload);
 		
-		bleMessenger.idMessage = m;
-		
-		
+		return m;
 	}
 
 	@Override
@@ -207,19 +219,58 @@ public class MainActivity extends Activity {
 					Log.v(TAG, "known sender " + senderFingerprint);
 					
 				} else {
+					
+					byte[] outGoing = payload;
+					
 					// we don't know the sender and should add them;
+					
 					// parse the public key & friendly name out of the payload, and add this as a new person
 					Log.v(TAG, "unknown sender " + senderFingerprint);
+					
+					// create a new object for this peer
 					BlePeer p = new BlePeer("");
+					
+					// set the peer's identity fingerprint
 					p.SetFingerprint(senderFingerprint);
-					bleFriends.put(senderFingerprint, p);
 
-					// should this part actually send over a queue?
+					boolean PuKvalid = false;
+					
+					// trim off trailing null bytes and set the public key
+					PuKvalid = p.SetPublicKey(trim(payload));
+					
+					// add this peer to our list of friends
+					bleFriends.put(senderFingerprint, p);
+					
+					
+					//rsaKey.PublicKey()
+					
+					// spawn a new message to send
+					BleMessage m = new BleMessage();
+
+					// if the public key was set properly for the recipient, encrypt the payload
+					if (PuKvalid) {
+						m.MessagePayload = rsaKey.encrypt(p.GetPublicKey(), outGoing);
+						
+						if (m.MessagePayload.length == 0) {
+							Log.v(TAG, "msg encryption failed");
+						} else {
+							m.MessagePayload = payload;	
+						}
+					} else {
+						m.MessagePayload = payload;
+					}
+					
+
+					// set the public key for the destination
+					m.DestinationPublicKey = p.GetPublicKey();
+					
+					// add this message as outgoing to this peer
+					p.addBleMessageOut(m);
 					
 					// MAIN should tell the Messenger class to whom it should start sending messages
 					// local - queueOutboundMessage(senderFingerprint, p.GetFingerprintBytes());
 					
-					bleMessenger.sendIdentity(senderFingerprint);
+					bleMessenger.sendMessagesToPeer(p);
 				}
 				
 				
@@ -272,6 +323,8 @@ public class MainActivity extends Activity {
 	};
 	
 	public void handleButtonFindAFriend(View view) {
+		
+		// tell bleMessenger to look for folks and use the callback bleMessageStatus
 		bleMessenger.showFound(bleMessageStatus);
 	}
 		
@@ -286,6 +339,13 @@ public class MainActivity extends Activity {
 			  }
 			});
 		
+	}
+	
+	private static byte[] trim(byte[] bytes) {
+		int i = bytes.length - 1;
+		while(i >= 0 && bytes[i] == 0) { --i; }
+		
+		return Arrays.copyOf(bytes,  i+1);
 	}
 	
 }

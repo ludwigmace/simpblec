@@ -39,6 +39,9 @@ public class BleMessage {
 	public byte[] MessageHash;
 	public byte[] MessagePayload;
 	
+	public byte[] DestinationPublicKey;
+	public boolean encrypt;
+	
 	private int messageNumber;
 	
 	public void AddRecipient(BleRecipient Recipient) {
@@ -68,6 +71,7 @@ public class BleMessage {
 		pendingPacketStatus = false;
 	}
 	
+		
 	public ArrayList<BlePacket> GetAllPackets() {
 		return messagePackets;
 	}
@@ -122,6 +126,8 @@ public class BleMessage {
 		
 		// Message Type, RFP, SFP, and payload
 		byte[] MessageBytes = Bytes.concat(MsgType, RecipientFingerprint, SenderFingerprint, Payload);
+	
+		// if we're encrypting, we need to encrypt these MessageBytes
 		
 		Log.v(TAG, "MessageBytes: " + bytesToHex(MessageBytes));
 		

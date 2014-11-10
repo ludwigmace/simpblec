@@ -3,20 +3,28 @@ package com.example.simpblec;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 
+import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.security.auth.x500.X500Principal;
 
 import android.content.Context;
 import android.security.KeyPairGeneratorSpec;
+import android.util.Log;
 
 // taken from: https://android.googlesource.com/platform/development/+/master/samples/Vault/src/com/example/android/vault/SecretKeyWrapper.java
 public class KeyStuff {
@@ -25,6 +33,7 @@ public class KeyStuff {
 	private final KeyPair mPair;
 
     final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
+	private static final String TAG = null;
     
     public static String bytesToHex(byte[] bytes) {
         char[] hexChars = new char[bytes.length * 2];
@@ -85,6 +94,42 @@ public class KeyStuff {
     public byte[] wrap(SecretKey key) throws GeneralSecurityException {
         mCipher.init(Cipher.WRAP_MODE, mPair.getPublic());
         return mCipher.wrap(key);
+    }
+    
+    public byte[] encrypt(byte[] destKpu, byte[] payload)  {
+    	
+		Key pubkey;
+		byte[] emptyBytes = new byte[0];
+		
+		// return an empty byte array is anything fails
+		
+		try {
+			pubkey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(destKpu));
+			mCipher.init(Cipher.ENCRYPT_MODE, pubkey);
+		} catch (InvalidKeySpecException e) {
+			Log.v(TAG, "rsa: invalid key specification");
+			return emptyBytes;
+		} catch (NoSuchAlgorithmException e) {
+			Log.v(TAG, "rsa: no such algorithm");
+			return emptyBytes;
+		} catch (InvalidKeyException e) {
+			Log.v(TAG, "rsa: invalid key");
+			return emptyBytes;
+		}
+		
+		try {
+			return(mCipher.doFinal(payload));
+		} catch (IllegalBlockSizeException e) {
+			Log.v(TAG, "rsa: illegal block size;");
+			e.printStackTrace();
+			return emptyBytes;
+		} catch (BadPaddingException e) {
+			Log.v(TAG, "rsa: bad padding");
+			return emptyBytes;
+		}
+		
+		
+		
     }
     
     // Unwrap a SecretKey using the private key assigned to this

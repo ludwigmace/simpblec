@@ -87,27 +87,9 @@ public class BleMessenger {
 
 		
 	}
-	
-	public void sendIdentity(String recipientFingerprint) {
-
-		// find the peer address based on the fingerprint
-		Log.v(TAG, "get peer address for FP:" + recipientFingerprint);
-		String peerAddress = fpNetMap.get(recipientFingerprint);
-		Log.v(TAG, "peer address is:" + peerAddress);
 		
-		// pull the peer based on the address
-		BlePeer p = peerMap.get(peerAddress);
-		Log.v(TAG, "pulling fingerprint from peer object: " + p.GetFingerprint());
-		
-		// queue up our id message for this peer (need a way to reset the idMessage for new peers!)
-		p.addBleMessageOut(idMessage);
-	
-
-		// now just send everything to this recipient - we'll want to move this to its own method
-    	// if we've got packets pending send, then send them
-		Log.v(TAG, "call write for this peer");
-		writeOut(p);
-		
+	public void sendMessagesToPeer(BlePeer Peer) {
+		writeOut(Peer);
 	}
 	
 	// perhaps have another signature that allows sending a single message
