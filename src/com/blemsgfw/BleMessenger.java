@@ -27,9 +27,7 @@ public class BleMessenger {
 	private BluetoothManager btMgr;
 	private BluetoothAdapter btAdptr;
 	private Context ctx;
-	
-	private boolean messageInbound;
-	private boolean messageOutbound;
+
 	
 	//  this is defined by the framework, but certainly the developer or user can change it
     private static String uuidServiceBase = "73A20000-2C47-11E4-8C21-0800200C9A66";
@@ -38,14 +36,10 @@ public class BleMessenger {
     private BleStatusCallback bleStatusCallback;
         
     private BleMessage blmsgOut;
-    private BleMessage blmsgIn;
     
     private String myIdentifier;
     private String myFriendlyName;
     
-    private int CurrentParentMessage;
-    private BlePeer CurrentPeer;
-
     // keep a map of our messages for a connection session - this may not work out; or we may need to keep a map per peer
     private Map<Integer, BleMessage> bleMessageMap;    
     
@@ -87,7 +81,11 @@ public class BleMessenger {
 
 		
 	}
-		
+	
+	/**
+	 * Send all the messages to the passed in Peer
+	 * @param Peer
+	 */
 	public void sendMessagesToPeer(BlePeer Peer) {
 		writeOut(Peer);
 	}
@@ -134,172 +132,104 @@ public class BleMessenger {
 		
 		bleStatusCallback = blestatuscallback;
 	}
-	
-	public void attendMessage(BleMessage message, BleStatusCallback blestatuscallback) {
-		// TODO add a way to switch b/w Peripheral and Central modes; for right now we'll start with Central
+    
+	private void incomingMessage(String remoteAddress, UUID remoteCharUUID, byte[] incomingBytes) {
+		// based on remoteAddress, UUID of remote characteristic, put the incomingBytes into a Message
+		// probably need to have a switchboard function
 		
-		// need to set some variables here . . .
-		myGattClient = new MyCentral(btAdptr, ctx, clientHandler);
-		blmsgIn = message;
-		messageInbound = true;
-		myGattClient.scanLeDevice(true);
+		// remoteAddress will allow me to look up the connection, so "sender" won't need to be in the packet
+		// 
 		
-	}
-	
-	public void sendMessage(BleMessage message, BleStatusCallback blestatuscallback) {
-	
-		// TODO add a way to switch b/w Peripheral and Central modes; for right now we'll start with Peripheral
-		//myGattServer = new MyAdvertiser(uuidServiceBase, ctx, btAdptr, btMgr, defaultHandler);
-
-		//myGattClient = new MyCentral(btAdptr, ctx, clientHandler);
+		int parentMessagePacketTotal = 0;
 		
-		// give us a hook to notify the calling Activity
-		bleStatusCallback = blestatuscallback;
+		Log.v(TAG, "incoming hex bytes:" + ByteUtilities.bytesToHex(incomingBytes));
 		
-	
-		myGattClient.scanLeDevice(true);
-		
-		// TODO: convert this to use a list of messages, not just a single message
-		blmsgOut = message;
-		
-		// prep the read characteristic with the first packet in the message, but don't increment the counter
-		byte[] firstPacket = blmsgOut.GetPacket(0).MessageBytes;
-
-		
-	}
-	
-    private void sendIndicateNotify(UUID uuid) {
-    	byte[] nextPacket = blmsgOut.GetPacket().MessageBytes;
-    	
-    	//boolean msgSent = myGattServer.updateCharValue(uuid, nextPacket);
-		
-    	if (blmsgOut.PendingPacketStatus()) {
-    		sendIndicateNotify(uuid);
+		// if our msg is under a few bytes it can't be valid; return
+    	if (incomingBytes.length < 5) {
+    		Log.v(TAG, "message bytes less than 5");
+    		return;
     	}
     	
-    }
-    
-    // make this work for a collection of recipients, and for each recipient, each one of their pending messages
-    private void sendWrite(BluetoothGattCharacteristic writeChar) {
+    	//get the connection
+    	BlePeer thisConnection = peerMap.get(remoteAddress);
+	    	
+    	// get the Message to which these packets belong as well as the current counter
+    	int parentMessage = incomingBytes[0] & 0xFF;
+    	int packetCounter = (incomingBytes[1] << 8) | incomingBytes[2] & 0xFF;
+
+    	// find the message for this connection that we're building
+    	BleMessage b = thisConnection.getBleMessageIn(parentMessage);
     	
-    	// if we've got packets pending send, then send them
-    	if (blmsgOut.PendingPacketStatus()) {
-    		byte[] nextPacket = blmsgOut.GetPacket().MessageBytes;
+    	// your packet payload will be the size of the incoming bytes
+    	//less our 3 needed for the header (ref'd above)
+    	byte[] packetPayload = Arrays.copyOfRange(incomingBytes, 3, incomingBytes.length);
+    	
+    	Log.v(TAG, "payload:"+ ByteUtilities.bytesToHex(packetPayload));
+    	
+    	// if our current packet counter is ZERO, then we can expect our payload to be:
+    	// the number of packets we're expecting
+    	if (packetCounter == 0) {
+    		// right now this is only going to be a couple of bytes
     		
-    		Log.v(TAG, "send pending packet to " + writeChar.getUuid().toString());
-    		//myGattClient.submitCharacteristicWriteRequest(writeChar, nextPacket);
+    		parentMessagePacketTotal = (incomingBytes[3] << 8) | incomingBytes[4] & 0xFF;
+    		Log.v(TAG, "p0, parentMessagePacketTotal from incomingBytes is:" + String.valueOf(parentMessagePacketTotal));
+    		
+    		b.BuildMessageFromPackets(packetCounter, packetPayload, parentMessagePacketTotal);
     	} else {
-    		Log.v(TAG, "all pending packets sent");
+    		// otherwise throw this packet payload into the message
+    		Log.v(TAG, "p1+:" + String.valueOf(packetCounter));
+    		b.BuildMessageFromPackets(packetCounter, packetPayload);	
     	}
-    }
+    	
+    	// check if this particular message is done; ie, is it still pending packets?
+    	if (b.PendingPacketStatus() == false) {
+    		
+    		// this message receipt is now complete
+    		// so now we need to handle that completed state
+    		
+    		// if this particular message was an identifying message, then:
+    		// - send our identity over
+    		// - return friendly name to calling program
 
-
-    public void queueOutboundMessage(String recipientFingerprint, byte[] msg) {
-    	BleMessage m = new BleMessage();
-    	m.MessagePayload = msg;
-    	m.RecipientFingerprint = ByteUtilities.hexToBytes(recipientFingerprint);
-    }
-    
-    public void releasePending(String recipientFingerprint) {
-    	// central should up connectee using this fingerprint
-    	// then hit up the Write command in a loop
-    }
-
-    
+    		String recipientFingerprint = "";
+    		String senderFingerprint = "";
+    		String msgType = "";
+    		
+    		byte[] payload = b.MessagePayload;
+    		
+    		if (b.RecipientFingerprint != null) {
+    			recipientFingerprint = ByteUtilities.bytesToHex(b.RecipientFingerprint);
+    		}
+    		
+    		if (b.SenderFingerprint != null) {
+    			senderFingerprint = ByteUtilities.bytesToHex(b.SenderFingerprint);
+    		}
+    		
+    		if (b.MessageType != null) {
+    			msgType = b.MessageType;
+    		}
+    		
+    		Log.v(TAG, "adding to fpNetMap:" + senderFingerprint + "; " + remoteAddress);
+    		BlePeer p = peerMap.get(remoteAddress);
+    		p.SetFingerprint(b.SenderFingerprint);
+    		fpNetMap.put(senderFingerprint, remoteAddress);
+    		
+    		
+    		bleStatusCallback.handleReceivedMessage(recipientFingerprint, senderFingerprint, payload, msgType);
+    		
+    		// check message integrity here?
+    		// what about encryption?
+    		
+    		// how do i parse the payload if the message contains handshake/identity?
+    	}
+		
+	}
+	
     MyGattClientHandler clientHandler = new MyGattClientHandler() {
     	
     	@Override
     	public void incomingMissive(String remoteAddress, UUID remoteCharUUID, byte[] incomingBytes) {
-    		// based on remoteAddress, UUID of remote characteristic, put the incomingBytes into a Message
-    		// probably need to have a switchboard function
-    		
-    		// remoteAddress will allow me to look up the connection, so "sender" won't need to be in the packet
-    		// 
-    		
-    		int parentMessagePacketTotal = 0;
-    		
-    		Log.v(TAG, "incoming hex bytes:" + ByteUtilities.bytesToHex(incomingBytes));
-    		
-    		// if our msg is under a few bytes it can't be valid; return
-        	if (incomingBytes.length < 5) {
-        		Log.v(TAG, "message bytes less than 5");
-        		return;
-        	}
-        	
-        	//get the connection
-        	BlePeer thisConnection = peerMap.get(remoteAddress);
-    	    	
-        	// get the Message to which these packets belong as well as the current counter
-        	int parentMessage = incomingBytes[0] & 0xFF;
-        	int packetCounter = (incomingBytes[1] << 8) | incomingBytes[2] & 0xFF;
-
-        	// find the message for this connection that we're building
-        	BleMessage b = thisConnection.getBleMessageIn(parentMessage);
-        	
-        	// your packet payload will be the size of the incoming bytes
-        	//less our 3 needed for the header (ref'd above)
-        	byte[] packetPayload = Arrays.copyOfRange(incomingBytes, 3, incomingBytes.length);
-        	
-        	Log.v(TAG, "payload:"+ ByteUtilities.bytesToHex(packetPayload));
-        	
-        	// if our current packet counter is ZERO, then we can expect our payload to be:
-        	// the number of packets we're expecting
-        	if (packetCounter == 0) {
-        		// right now this is only going to be a couple of bytes
-        		
-        		parentMessagePacketTotal = (incomingBytes[3] << 8) | incomingBytes[4] & 0xFF;
-        		Log.v(TAG, "p0, parentMessagePacketTotal from incomingBytes is:" + String.valueOf(parentMessagePacketTotal));
-        		
-        		b.BuildMessageFromPackets(packetCounter, packetPayload, parentMessagePacketTotal);
-        	} else {
-        		// otherwise throw this packet payload into the message
-        		Log.v(TAG, "p1+:" + String.valueOf(packetCounter));
-        		b.BuildMessageFromPackets(packetCounter, packetPayload);	
-        	}
-        	
-        	// check if this particular message is done; ie, is it still pending packets?
-        	if (b.PendingPacketStatus() == false) {
-        		
-        		// this message receipt is now complete
-        		// so now we need to handle that completed state
-        		
-        		// if this particular message was an identifying message, then:
-        		// - send our identity over
-        		// - return friendly name to calling program
-
-        		String recipientFingerprint = "";
-        		String senderFingerprint = "";
-        		String msgType = "";
-        		
-        		byte[] payload = b.MessagePayload;
-        		
-        		if (b.RecipientFingerprint != null) {
-        			recipientFingerprint = ByteUtilities.bytesToHex(b.RecipientFingerprint);
-        		}
-        		
-        		if (b.SenderFingerprint != null) {
-        			senderFingerprint = ByteUtilities.bytesToHex(b.SenderFingerprint);
-        		}
-        		
-        		if (b.MessageType != null) {
-        			msgType = b.MessageType;
-        		}
-        		
-        		Log.v(TAG, "adding to fpNetMap:" + senderFingerprint + "; " + remoteAddress);
-        		BlePeer p = peerMap.get(remoteAddress);
-        		p.SetFingerprint(b.SenderFingerprint);
-        		fpNetMap.put(senderFingerprint, remoteAddress);
-        		
-        		
-        		bleStatusCallback.handleReceivedMessage(recipientFingerprint, senderFingerprint, payload, msgType);
-        		
-        		// check message integrity here?
-        		// what about encryption?
-        		
-        		// how do i parse the payload if the message contains handshake/identity?
-        	}
-        	
-    		
+    		incomingMessage(remoteAddress, remoteCharUUID, incomingBytes);
     		
     	}
     	
@@ -325,25 +255,6 @@ public class BleMessenger {
 			}
 			
 		}
-
-			
-		@Override
-		public void getFoundCharacteristics(BluetoothGatt gatt, List<BluetoothGattCharacteristic> foundChars) {
-			
-			String gattServiceAddress = gatt.getDevice().getAddress();
-			String currentStateForService = "id";
-			
-			String myIdentifying = myIdentifier + "|" + myFriendlyName;
-
-			// the characteristics from a remote gatt device have been pulled into the foundChars List<>
-			// we should expect a certain number and type of characteristics
-	
-
-			// the correct service definition has already been verified
-			// you don't really need to loop over all kinds of shit, you've already verified!
-
-			
-		}
 		
 		@Override
 		public void parlayWithRemote(String remoteAddress) {
@@ -357,8 +268,8 @@ public class BleMessenger {
 			// add this new message to our message map
 			bleMessageMap.put(0, b);
 
-			// pass our remote address and desired uuid to our gattclient, who will look up the gatt object and uuid and issue the read request
-			//myGattClient.submitCharacteristicReadRequest(remoteAddress, uuidFromBase("100"));
+			// pass our remote address and desired uuid to our gattclient
+			// who will look up the gatt object and uuid and issue the read request
 			myGattClient.submitSubscription(remoteAddress, uuidFromBase("102"));
 			
 			// still need to write identity info
@@ -366,19 +277,10 @@ public class BleMessenger {
 			
 		}
 		
-		@Override
-		public void handleWriteResult(BluetoothGatt gatt, BluetoothGattCharacteristic writtenCharacteristic, int result) {
-			// if we're handling the data characteristics, then do this:
-			// sendWrite(writtenCharacteristic);
-			
-			// if we're handling identification characteristics, and we were successful, we've identified ourselves to the remote server
-			
-			
-		}
 		
 		@Override
 		public void reportDisconnect() {
-
+			// what to do when disconnected?
 			
 		}
     	
