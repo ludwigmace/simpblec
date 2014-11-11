@@ -261,8 +261,9 @@ public class MainActivity extends Activity {
 					}
 					
 
-					// set the public key for the destination
-					m.DestinationPublicKey = p.GetPublicKey();
+					// set the public key for the destination; don't need to do this
+					//  if we're going to encrypt in the main method
+					//m.DestinationPublicKey = p.GetPublicKey();
 					
 					// add this message as outgoing to this peer
 					p.addBleMessageOut(m);

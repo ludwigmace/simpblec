@@ -106,10 +106,13 @@ public class BleMessenger {
     		byte[] nextPacket = b.GetPacket().MessageBytes;
     		
     		Log.v(TAG, "send write request to " + remoteAddress);
-    		myGattClient.submitCharacteristicWriteRequest(remoteAddress, uuidFromBase("101"), nextPacket);
     		
-    		// call this until the message is sent
-    		writeOut(peer);
+    		if (nextPacket != null) {
+	    		myGattClient.submitCharacteristicWriteRequest(remoteAddress, uuidFromBase("101"), nextPacket);
+	    		
+	    		// call this until the message is sent
+	    		writeOut(peer);
+    		}
     	} else {
     		Log.v(TAG, "all pending packets sent");
     	}
@@ -197,38 +200,6 @@ public class BleMessenger {
     	m.RecipientFingerprint = hexToBytes(recipientFingerprint);
     }
     
-    public void parseIncomingMsg(BlePeer blePeer, BluetoothGattCharacteristic incomingChar, byte[] incomingBytes, boolean initNewRead) {
-    	
-    	// read in the bytes to build the message - if it needs another read, read in
-    	// probably need to build in a failsafe as well
-    	
-    	boolean readMore = false;
-    	
-    	Log.v(TAG, "incoming byte (string): " + new String(incomingBytes));
-    	
-    	readMore = blmsgIn.BuildMessage(incomingBytes);
-    	
-    	if (readMore) {
-    		if (initNewRead) {
-    			//getRead(incomingChar);
-    		}
-    	} else {
-            String pendingmsg = "";
-            
-            ArrayList<BlePacket> blms = blmsgIn.GetAllPackets();
-            
-            for (BlePacket b : blms) {
-            	pendingmsg = pendingmsg + new String(b.MessageBytes);
-            }
-            
-            pendingmsg = pendingmsg.trim();
-            
-            Log.v(TAG, "msg fin: " + pendingmsg);
-    	}
-    	
-    }
-    
-
     public void releasePending(String recipientFingerprint) {
     	// central should up connectee using this fingerprint
     	// then hit up the Write command in a loop
@@ -355,39 +326,7 @@ public class BleMessenger {
 			
 		}
 
-		public void readCharacteristicReturned(BluetoothGatt gatt, BluetoothGattCharacteristic readChar, byte[] charValue, int status) {
-			// a characteristic came in outta the blue - what do i do with it?
 			
-			// who the hell is talking back to us?
-			String remoteAddress = gatt.getDevice().getAddress().toString();
-			
-			// find the peer based on that address
-			BlePeer bleP = peerMap.get(remoteAddress);
-			
-			parseIncomingMsg(bleP, readChar, charValue, true);
-
-			UUID readIdChar = uuidFromBase("100"); 
-
-			Log.v(TAG, "read request returned from:" + remoteAddress);
-			
-			// if the incoming characteristic is an ID
-			if (readChar.getUuid().equals(readIdChar)) {
-				String remoteName = new String(charValue); 
-				bleP.SetName(remoteName);
-				peerMap.put(remoteAddress, bleP);
-				
-				Log.v(TAG, "added to peermap:" + remoteName);
-				
-				bleStatusCallback.remoteServerAdded(bleP.GetName());
-				
-			}
-			
-			// now need to add if incoming characteristic is handling data
-			
-		}
-		
-		
-		
 		@Override
 		public void getFoundCharacteristics(BluetoothGatt gatt, List<BluetoothGattCharacteristic> foundChars) {
 			
@@ -414,10 +353,6 @@ public class BleMessenger {
 			// so now let's trade identification information and transfer any data
 
 			BleMessage b = new BleMessage();
-			
-			// this message will have a numeric identifier of Zero since it's an ID message, and will use the other info for general ID as well:
-			// for the peer id'd by address (might want to change to the actual peer object instead), the UUID we've selected for IDs
-			b.SetRemoteInfo(remoteAddress, uuidFromBase("100"), 0);
 			
 			// add this new message to our message map
 			bleMessageMap.put(0, b);
