@@ -180,37 +180,9 @@ public class BleMessenger {
     	// check if this particular message is done; ie, is it still pending packets?
     	if (b.PendingPacketStatus() == false) {
     		
-    		// this message receipt is now complete
-    		// so now we need to handle that completed state
+    		fpNetMap.put(ByteUtilities.bytesToHex(b.SenderFingerprint), remoteAddress);
     		
-    		// if this particular message was an identifying message, then:
-    		// - send our identity over
-    		// - return friendly name to calling program
-
-    		String recipientFingerprint = "";
-    		String senderFingerprint = "";
-    		String msgType = "";
-    		
-    		byte[] payload = b.MessagePayload;
-    		
-    		if (b.RecipientFingerprint != null) {
-    			recipientFingerprint = ByteUtilities.bytesToHex(b.RecipientFingerprint);
-    		}
-    		
-    		if (b.SenderFingerprint != null) {
-    			senderFingerprint = ByteUtilities.bytesToHex(b.SenderFingerprint);
-    		}
-    		
-    		if (b.MessageType != null) {
-    			msgType = b.MessageType;
-    		}
-    		
-    		Log.v(TAG, "adding to fpNetMap:" + senderFingerprint + "; " + remoteAddress);
-
-    		p.SetFingerprint(b.SenderFingerprint);
-    		fpNetMap.put(senderFingerprint, remoteAddress);
-    		
-    		bleStatusCallback.handleReceivedMessage(recipientFingerprint, senderFingerprint, payload, msgType);
+    		bleStatusCallback.handleReceivedMessage(ByteUtilities.bytesToHex(b.RecipientFingerprint), ByteUtilities.bytesToHex(b.SenderFingerprint), b.MessagePayload, b.MessageType);
     		
     		// check message integrity here?
     		// what about encryption?
