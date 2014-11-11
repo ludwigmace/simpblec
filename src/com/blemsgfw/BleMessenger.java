@@ -149,22 +149,20 @@ public class BleMessenger {
     		Log.v(TAG, "message bytes less than 5");
     		return;
     	}
-    	
-    	//get the connection
-    	BlePeer thisConnection = peerMap.get(remoteAddress);
-	    	
+    		    	
     	// get the Message to which these packets belong as well as the current counter
     	int parentMessage = incomingBytes[0] & 0xFF;
     	int packetCounter = (incomingBytes[1] << 8) | incomingBytes[2] & 0xFF;
 
+    	//get the connection
+    	BlePeer p = peerMap.get(remoteAddress);
+    	
     	// find the message for this connection that we're building
-    	BleMessage b = thisConnection.getBleMessageIn(parentMessage);
+    	BleMessage b = p.getBleMessageIn(parentMessage);
     	
     	// your packet payload will be the size of the incoming bytes
     	//less our 3 needed for the header (ref'd above)
     	byte[] packetPayload = Arrays.copyOfRange(incomingBytes, 3, incomingBytes.length);
-    	
-    	Log.v(TAG, "payload:"+ ByteUtilities.bytesToHex(packetPayload));
     	
     	// if our current packet counter is ZERO, then we can expect our payload to be:
     	// the number of packets we're expecting
@@ -172,12 +170,10 @@ public class BleMessenger {
     		// right now this is only going to be a couple of bytes
     		
     		parentMessagePacketTotal = (incomingBytes[3] << 8) | incomingBytes[4] & 0xFF;
-    		Log.v(TAG, "p0, parentMessagePacketTotal from incomingBytes is:" + String.valueOf(parentMessagePacketTotal));
     		
     		b.BuildMessageFromPackets(packetCounter, packetPayload, parentMessagePacketTotal);
     	} else {
     		// otherwise throw this packet payload into the message
-    		Log.v(TAG, "p1+:" + String.valueOf(packetCounter));
     		b.BuildMessageFromPackets(packetCounter, packetPayload);	
     	}
     	
@@ -210,10 +206,9 @@ public class BleMessenger {
     		}
     		
     		Log.v(TAG, "adding to fpNetMap:" + senderFingerprint + "; " + remoteAddress);
-    		BlePeer p = peerMap.get(remoteAddress);
+
     		p.SetFingerprint(b.SenderFingerprint);
     		fpNetMap.put(senderFingerprint, remoteAddress);
-    		
     		
     		bleStatusCallback.handleReceivedMessage(recipientFingerprint, senderFingerprint, payload, msgType);
     		
