@@ -50,14 +50,15 @@ public class BleMessenger {
     
     List<BleCharacteristic> serviceDef;
 	
-	public BleMessenger(BleMessengerOptions options, BluetoothManager m, BluetoothAdapter a, Context c) {
+	public BleMessenger(BleMessengerOptions options, BluetoothManager m, BluetoothAdapter a, Context c, BleStatusCallback blestatuscallback) {
 		myIdentifier = options.Identifier;
 		myFriendlyName = options.FriendlyName;
 		
+		bleStatusCallback = blestatuscallback;
 		btMgr = m;
 		btAdptr = a;
 		ctx = c;
-		
+			
 		serviceDef = new ArrayList<BleCharacteristic>();
 		
 		// i need a place to put my found peers
@@ -126,11 +127,9 @@ public class BleMessenger {
 	}
 	
 		
-	public void showFound(BleStatusCallback blestatuscallback) {
+	public void showFound() {
 		// actually return a list of some sort
 		myGattClient.scanLeDevice(true);
-		
-		bleStatusCallback = blestatuscallback;
 	}
     
 	private void incomingMessage(String remoteAddress, UUID remoteCharUUID, byte[] incomingBytes) {

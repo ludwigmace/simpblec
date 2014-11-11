@@ -93,7 +93,7 @@ public class MainActivity extends Activity {
 		
         
 		// create a messenger along with the context (for bluetooth operations)
-		bleMessenger = new BleMessenger(bo, btMgr, btAdptr, this);
+		bleMessenger = new BleMessenger(bo, btMgr, btAdptr, this, bleMessageStatus);
 
 		
 		// generate message of particular byte size
@@ -326,7 +326,7 @@ public class MainActivity extends Activity {
 	public void handleButtonFindAFriend(View view) {
 		
 		// tell bleMessenger to look for folks and use the callback bleMessageStatus
-		bleMessenger.showFound(bleMessageStatus);
+		bleMessenger.showFound();
 	}
 		
 	private void showMessage(String msg) {
