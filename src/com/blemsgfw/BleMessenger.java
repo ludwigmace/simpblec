@@ -197,7 +197,7 @@ public class BleMessenger {
     public void queueOutboundMessage(String recipientFingerprint, byte[] msg) {
     	BleMessage m = new BleMessage();
     	m.MessagePayload = msg;
-    	m.RecipientFingerprint = hexToBytes(recipientFingerprint);
+    	m.RecipientFingerprint = ByteUtilities.hexToBytes(recipientFingerprint);
     }
     
     public void releasePending(String recipientFingerprint) {
@@ -218,7 +218,7 @@ public class BleMessenger {
     		
     		int parentMessagePacketTotal = 0;
     		
-    		Log.v(TAG, "incoming hex bytes:" + bytesToHex(incomingBytes));
+    		Log.v(TAG, "incoming hex bytes:" + ByteUtilities.bytesToHex(incomingBytes));
     		
     		// if our msg is under a few bytes it can't be valid; return
         	if (incomingBytes.length < 5) {
@@ -240,7 +240,7 @@ public class BleMessenger {
         	//less our 3 needed for the header (ref'd above)
         	byte[] packetPayload = Arrays.copyOfRange(incomingBytes, 3, incomingBytes.length);
         	
-        	Log.v(TAG, "payload:"+ bytesToHex(packetPayload));
+        	Log.v(TAG, "payload:"+ ByteUtilities.bytesToHex(packetPayload));
         	
         	// if our current packet counter is ZERO, then we can expect our payload to be:
         	// the number of packets we're expecting
@@ -274,11 +274,11 @@ public class BleMessenger {
         		byte[] payload = b.MessagePayload;
         		
         		if (b.RecipientFingerprint != null) {
-        			recipientFingerprint = bytesToHex(b.RecipientFingerprint);
+        			recipientFingerprint = ByteUtilities.bytesToHex(b.RecipientFingerprint);
         		}
         		
         		if (b.SenderFingerprint != null) {
-        			senderFingerprint = bytesToHex(b.SenderFingerprint);
+        			senderFingerprint = ByteUtilities.bytesToHex(b.SenderFingerprint);
         		}
         		
         		if (b.MessageType != null) {
@@ -384,26 +384,5 @@ public class BleMessenger {
     	
     };
 
-    final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
-    public static String bytesToHex(byte[] bytes) {
-        char[] hexChars = new char[bytes.length * 2];
-        for ( int j = 0; j < bytes.length; j++ ) {
-            int v = bytes[j] & 0xFF;
-            hexChars[j * 2] = hexArray[v >>> 4];
-            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
-        }
-        return new String(hexChars);
-    }
-
-    private static byte[] hexToBytes(String hex) {
-    	byte[] bytes = new byte[hex.length() / 2];
-    	
-    	for (int i = 0; i < bytes.length; i++) {
-    		bytes[i] = (byte) Integer.parseInt(hex.substring(2*i, 2*i+2),16);
-    		
-    	}
-    	
-    	return bytes;
-    }
     
 }
